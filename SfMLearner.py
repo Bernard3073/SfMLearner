@@ -8,7 +8,7 @@ import tensorflow.contrib.slim as slim
 from data_loader import DataLoader
 from nets import *
 from utils import *
-
+from tqdm import tqdm
 class SfMLearner(object):
     def __init__(self):
         pass
@@ -217,6 +217,7 @@ class SfMLearner(object):
                                  save_summaries_secs=0, 
                                  saver=None)
         config = tf.ConfigProto()
+        os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
         config.gpu_options.allow_growth = True
         with sv.managed_session(config=config) as sess:
             print('Trainable variables: ')
@@ -231,7 +232,7 @@ class SfMLearner(object):
                 print("Resume training from previous checkpoint: %s" % checkpoint)
                 self.saver.restore(sess, checkpoint)
             start_time = time.time()
-            for step in range(1, opt.max_steps):
+            for step in tqdm(range(1, opt.max_steps)):
                 fetches = {
                     "train": self.train_op,
                     "global_step": self.global_step,
@@ -241,6 +242,9 @@ class SfMLearner(object):
                 if step % opt.summary_freq == 0:
                     fetches["loss"] = self.total_loss
                     fetches["summary"] = sv.summary_op
+
+                coord = tf.train.Coordinator()
+                threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
                 results = sess.run(fetches)
                 gs = results["global_step"]

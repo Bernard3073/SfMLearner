@@ -23,7 +23,7 @@ class DataLoader(object):
         """
         seed = random.randint(0, 2**31 - 1)
         # Load the list of training files into queues
-        file_list = self.format_file_list(self.dataset_dir, 'train')
+        file_list = self.format_file_list(self.dataset_dir, 'SfMLearnerDatatrain')
         image_paths_queue = tf.train.string_input_producer(
             file_list['image_file_list'], 
             seed=seed, 
@@ -111,9 +111,38 @@ class DataLoader(object):
             cy = intrinsics[:,1,2] - tf.cast(offset_y, dtype=tf.float32)
             intrinsics = self.make_intrinsics_matrix(fx, fy, cx, cy)
             return im, intrinsics
+        
+        # Random intensities
+        def augment_intensity(im):
+            batch_size, in_h, in_w, in_c = im.get_shape().as_list()
+            im = tf.image.convert_image_dtype(im, tf.float32)
+            
+            # brightness correction
+            random_brightness = tf.random_uniform([], 0.5, 2.0)
+            im_out  =  im * random_brightness
+            
+            # gamma correction
+            gamma = tf.random_uniform([], 0.65, 1.6)
+            im_out  = im_out  ** gamma
+
+            # # randomly shift color
+            # random_colors = tf.random_uniform([in_c], 0.8, 1.2)
+            # white = tf.ones([batch_size, in_h, in_w])
+            # color_im = tf.stack([white * random_colors[i] for i in range(in_c)], axis=3)
+            # im_out  *= color_im
+
+            im_out  = tf.clip_by_value(im_out,  0, 1)
+            im_out = tf.image.convert_image_dtype(im_out, tf.uint8)
+            return im_out
+
         im, intrinsics = random_scaling(im, intrinsics)
         im, intrinsics = random_cropping(im, intrinsics, out_h, out_w)
         im = tf.cast(im, dtype=tf.uint8)
+        
+        # modify intensities
+        prob  = tf.random_uniform([], 0, 1)
+        im = tf.cond(prob > 0.35, lambda: augment_intensity(im), lambda: im) # 65% chance of augmentation
+        
         return im, intrinsics
 
     def format_file_list(self, data_root, split):

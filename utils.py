@@ -1,7 +1,9 @@
 from __future__ import division
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+# import tensorflow as tf
 
 def gray2rgb(im, cmap='gray'):
     cmap = plt.get_cmap(cmap)
@@ -96,7 +98,6 @@ def pose_vec2mat(vec):
 
 def pixel2cam(depth, pixel_coords, intrinsics, is_homogeneous=True):
   """Transforms coordinates in the pixel frame to the camera frame.
-
   Args:
     depth: [batch, height, width]
     pixel_coords: homogeneous pixel coordinates [batch, 3, height, width]
@@ -117,7 +118,6 @@ def pixel2cam(depth, pixel_coords, intrinsics, is_homogeneous=True):
 
 def cam2pixel(cam_coords, proj):
   """Transforms coordinates in a camera frame to the pixel frame.
-
   Args:
     cam_coords: [batch, 4, height, width]
     proj: [batch, 4, 4]
@@ -138,7 +138,6 @@ def cam2pixel(cam_coords, proj):
 
 def meshgrid(batch, height, width, is_homogeneous=True):
   """Construct a 2D meshgrid.
-
   Args:
     batch: batch size
     height: height of the grid
@@ -164,7 +163,6 @@ def meshgrid(batch, height, width, is_homogeneous=True):
 
 def projective_inverse_warp(img, depth, pose, intrinsics):
   """Inverse warp a source image to the target image plane based on projection.
-
   Args:
     img: the source image [batch, height_s, width_s, 3]
     depth: depth map of the target image [batch, height_t, width_t]
@@ -196,9 +194,7 @@ def projective_inverse_warp(img, depth, pose, intrinsics):
 
 def bilinear_sampler(imgs, coords):
   """Construct a new image by bilinear sampling from the input image.
-
   Points falling outside the source image boundary have value 0.
-
   Args:
     imgs: source image to be sampled from [batch, height_s, width_s, channels]
     coords: coordinates of source pixels to sample from [batch, height_t,

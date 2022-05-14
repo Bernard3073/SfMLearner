@@ -1,5 +1,7 @@
 from __future__ import division
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+# import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.contrib.layers.python.layers import utils
 import numpy as np
@@ -70,6 +72,106 @@ def pose_exp_net(tgt_image, src_image_stack, do_exp=True, is_training=True):
                 mask4 = None
             end_points = utils.convert_collection_to_dict(end_points_collection)
             return pose_final, [mask1, mask2, mask3, mask4], end_points
+
+
+def resconv(x, num_layers, stride):
+    do_proj = tf.shape(x)[3] != num_layers or stride == 2
+    conv1 = slim.conv2d(x, num_layers, [1, 1], stride=1, activation_fn=tf.nn.elu)
+    conv2 = slim.conv2d(conv1, num_layers, [3, 3], stride=stride, activation_fn=tf.nn.elu)
+    conv3 = slim.conv2d(conv2, 4 * num_layers, [1, 1], stride=1, activation_fn=None)
+    if do_proj:
+        shortcut = slim.conv2d(x, 4* num_layers, [1, 1], stride=stride, activation_fn=None)
+    else:
+        shortcut = x
+    return tf.nn.elu(conv3 + shortcut)
+
+def resblock(x, num_layers, num_blocks):
+    out = x
+    for i in range(num_blocks - 1):
+        out = resconv(out, num_layers, 1)
+    out = resconv(out, num_layers, 2)
+    return out
+
+def upsample_nn(x, ratio):
+    s = tf.shape(x)
+    h = s[1]
+    w = s[2]
+    return tf.image.resize_nearest_neighbor(x, [h*ratio, w*ratio])
+
+def upconv(x, num_layers, kernal, scale):
+    upsample = upsample_nn(x, scale)
+    conv = slim.conv2d(upsample, num_layers, [kernal, kernal], stride=1, activation_fn=tf.nn.elu)
+    return conv
+
+# # source : (Zou et al 2018) https://github.com/vt-vl-lab/DF-Net/blob/master/core/nets.py
+# def disp_net(tgt_image, is_training=True, reuse=False, get_feature=False):
+#     H = tgt_image.get_shape()[1].value
+#     W = tgt_image.get_shape()[2].value
+#     with tf.variable_scope('depth_net_res50') as sc:
+#         end_points_collection = sc.original_name_scope + '_end_points'
+#         with slim.arg_scope([slim.conv2d, slim.conv2d_transpose],
+#                             activation_fn=tf.nn.relu,
+#                             outputs_collections=end_points_collection):
+#             # Encoder
+#             conv1 = slim.conv2d(tgt_image, 64, [7, 7], stride=2)      # 1/2
+#             pool1 = slim.max_pool2d(conv1, [3, 3], padding='SAME')    # 1/4
+#             conv2 = resblock(pool1, 64, 3)                            # 1/8
+#             conv3 = resblock(conv2, 128, 4)                           # 1/16
+#             conv4 = resblock(conv3, 256, 6)                           # 1/32
+#             conv5 = resblock(conv4, 512, 3)                           # 1/64
+
+#             # Decoder
+#             upconv6 = upconv(conv5, 512, 3, 2)                        # 1/32
+#             #upconv6 = slim.conv2d_transpose(conv5, 512, [3, 3], stride=2)
+#             upconv6 = resize_like(upconv6, conv4)
+#             concat6 = tf.concat([upconv6, conv4], 3)
+#             iconv6  = slim.conv2d(concat6, 512, [3, 3], stride=1)
+
+#             upconv5 = upconv(iconv6, 256, 3, 2)                       # 1/16
+#             #upconv5 = slim.conv2d_transpose(iconv6, 256, [3, 3], stride=2)
+#             upconv5 = resize_like(upconv5, conv3)
+#             concat5 = tf.concat([upconv5, conv3], 3)
+#             iconv5  = slim.conv2d(concat5, 256, [3, 3], stride=1)
+
+#             upconv4 = upconv(iconv5, 128, 3, 2)                       # 1/8
+#             #upconv4 = slim.conv2d_transpose(iconv5, 128, [3, 3], stride=2)
+#             upconv4 = resize_like(upconv4, conv2)
+#             concat4 = tf.concat([upconv4, conv2], 3)
+#             iconv4  = slim.conv2d(concat4, 128, [3, 3], stride=1)
+#             disp4   = DISP_SCALING * slim.conv2d(iconv4, 1, [3, 3], stride=1, 
+#                 activation_fn=tf.sigmoid, normalizer_fn=None, scope='disp4') + MIN_DISP
+#             disp4_up = tf.image.resize_bilinear(disp4, [np.int(H/4), np.int(W/4)])
+
+#             upconv3  = upconv(iconv4, 64, 3, 2)                       # 1/4
+#             #upconv3  = slim.conv2d_transpose(iconv4, 64, [3, 3], stride=2)
+#             upconv3  = resize_like(upconv3, pool1)
+#             disp4_up = resize_like(disp4_up, pool1)
+#             concat3  = tf.concat([upconv3, disp4_up, pool1], 3)
+#             iconv3   = slim.conv2d(concat3, 64, [3, 3], stride=1)
+#             disp3    = DISP_SCALING * slim.conv2d(iconv3, 1, [3, 3], stride=1,
+#                 activation_fn=tf.sigmoid, normalizer_fn=None, scope='disp3') + MIN_DISP
+#             disp3_up = tf.image.resize_bilinear(disp3, [np.int(H/2), np.int(W/2)])
+
+#             upconv2  = upconv(iconv3, 32, 3, 2)                       # 1/2
+#             #upconv2  = slim.conv2d_transpose(iconv3, 32, [3, 3], stride=2)
+#             upconv2  = resize_like(upconv2, conv1)
+#             disp3_up = resize_like(disp3_up, conv1)
+#             concat2  = tf.concat([upconv2, disp3_up, conv1], 3)
+#             iconv2   = slim.conv2d(concat2, 32, [3, 3], stride=1)
+#             disp2    = DISP_SCALING * slim.conv2d(iconv2, 1, [3, 3], stride=1,
+#                 activation_fn=tf.sigmoid, normalizer_fn=None, scope='disp2') + MIN_DISP
+#             disp2_up = tf.image.resize_bilinear(disp2, [H, W])
+
+#             upconv1 = upconv(iconv2, 16, 3, 2)
+#             #upconv1 = slim.conv2d_transpose(iconv2, 16, [3, 3], stride=2)
+#             upconv1 = resize_like(upconv1, disp2_up)
+#             concat1 = tf.concat([upconv1, disp2_up], 3)
+#             iconv1  = slim.conv2d(concat1, 16, [3, 3], stride=1)
+#             disp1   = DISP_SCALING * slim.conv2d(iconv1, 1, [3, 3], stride=1,
+#                 activation_fn=tf.sigmoid, normalizer_fn=None, scope='disp1') + MIN_DISP
+
+#             end_points = utils.convert_collection_to_dict(end_points_collection)
+#             return [disp1, disp2, disp3, disp4], end_points
 
 def disp_net(tgt_image, is_training=True):
     H = tgt_image.get_shape()[1].value
