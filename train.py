@@ -12,8 +12,8 @@ import os
 flags = tf.app.flags
 flags.DEFINE_string("dataset_dir", "./data/TrainingAndValData", "Dataset directory")
 # flags.DEFINE_string("checkpoint_dir", "./checkpoints/", "Directory name to save the checkpoints")
-flags.DEFINE_string("checkpoint_dir", "./modified_checkpoints/", "Directory name to save the checkpoints")
-flags.DEFINE_string("init_checkpoint_file", None, "Specific checkpoint file to initialize from")
+flags.DEFINE_string("checkpoint_dir", "./modified_checkpoints_1/", "Directory name to save the checkpoints")
+flags.DEFINE_string("init_checkpoint_file", "./modified_checkpoints/model.latest", "Specific checkpoint file to initialize from")
 flags.DEFINE_float("learning_rate", 0.0002, "Learning rate of for adam")
 flags.DEFINE_float("beta1", 0.9, "Momentum term of adam")
 flags.DEFINE_float("smooth_weight", 0.5, "Weight for smoothness")
@@ -43,8 +43,8 @@ def main(_):
     if not os.path.exists(FLAGS.checkpoint_dir):
         os.makedirs(FLAGS.checkpoint_dir)
         
-    # sfm = SfMLearner()
-    sf
+    sfm = SfMLearner()
+    # sfm = SfMLearner_modified()
     sfm.train(FLAGS)
 
 if __name__ == '__main__':
